@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird Clone</title>
+    <!-- Load Tailwind CSS for base styling and responsiveness -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Tone.js for background music generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script> 
+    <style>
+        /* Custom styles for the retro game aesthetic */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            font-family: 'Press Start 2P', monospace;
+            /* New Gradient Background */
+            background: radial-gradient(circle at center, #3c8d9e, #1a4f59); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            background: none; /* Canvas handles drawing */
+            /* Pattern Border Effect: using multiple box shadows for a blocky, layered look */
+            box-shadow: 
+                0 0 0 12px #382800, /* thick outer dark border */
+                0 0 0 16px #f7d560, /* thin yellow line */
+                0 0 0 20px #382800, /* thick inner dark border */
+                0 10px 20px rgba(0, 0, 0, 0.7); /* final drop shadow */
+            border: none;
+            border-radius: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            width: 90vw; 
+            max-width: 600px;
+            aspect-ratio: 3 / 4;
+            position: relative; /* Necessary for absolute score display */
+        }
+
+        #gameCanvas {
+            flex-grow: 1;
+            display: block;
+            image-rendering: pixelated; /* Essential for retro look */
+            background: none; /* Canvas will be cleared and drawn over by the background image */
+        }
+
+        #status-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            border: 4px solid #fff;
+            border-radius: 8px;
+            text-align: center;
+            color: #fff;
+            z-index: 100;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            transition: opacity 0.3s ease;
+            max-height: 90vh; /* Allow scrolling on smaller screens */
+            overflow-y: auto;
+        }
+
+        .btn-game {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1rem;
+            padding: 10px 20px;
+            margin-top: 15px;
+            border: 4px solid #382800;
+            border-radius: 6px;
+            box-shadow: 0 4px 0 0 #382800;
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+
+        .btn-game.default {
+            background-color: #f7d560;
+            color: #382800;
+        }
+        
+        .btn-game.default:hover {
+            background-color: #ffe082;
+        }
+
+        .btn-game.revive-green {
+            background-color: #10B981; /* Tailwind green-500 */
+            color: #fff;
+            border-color: #059669; /* Tailwind green-600 */
+        }
+
+        .btn-game.revive-green:hover {
+            background-color: #059669;
+        }
+        
+        .btn-game.customize {
+            font-size: 0.75rem;
+            padding: 8px 16px;
+            margin-top: 10px;
+            background-color: #3498DB;
+            color: white;
+            border-color: #2980B9;
+        }
+
+        .btn-game:active {
+            box-shadow: none;
+            transform: translateY(4px);
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 640px) {
+            #game-container {
+                aspect-ratio: 9 / 16; /* Taller on mobile */
+                width: 100vw;
+                box-shadow: none; /* Remove custom shadow on small devices */
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900">
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Game Status/Message Box -->
+        <div id="status-box" class="hidden">
+            <h2 id="status-title" class="text-xl mb-3">Flappy Bird</h2>
+            <p id="status-message" class="text-sm mb-4 leading-relaxed">Press SPACE or Click to Start/Jump</p>
+            
+            <!-- AI Feature Elements -->
+            <button id="aiBriefingButton" class="btn-game default mb-2 hidden">✨ Get AI Game Report</button>
+            <div id="aiAnalysisOutput" class="text-xs mt-3 p-2 bg-gray-800 text-gray-200 rounded-lg shadow-inner hidden leading-snug"></div>
+            <div id="aiLoadingSpinner" class="hidden flex justify-center items-center mt-3 text-sm">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Analyzing performance...
+            </div>
+            
+            <!-- Revive Options Container -->
+            <div id="reviveOptions" class="hidden flex flex-col items-center">
+                 <button id="useKeyButton" class="btn-game revive-green">USE 1 KEY (Keys: <span id="keyCountDisplay">0</span>)</button>
+                 <button id="continueButton" class="btn-game default">END GAME</button>
+            </div>
+            
+            <!-- Color Shop Container -->
+            <div id="colorShop" class="hidden w-full text-center">
+                <div id="colorGrid" class="flex flex-wrap justify-center gap-2 mt-4 max-w-sm mx-auto">
+                    <!-- Color buttons will be inserted here -->
+                </div>
+                <button id="shopBackButton" class="btn-game default text-sm mt-5">BACK TO HOME</button>
+            </div>
+
+            <!-- Main Menu Buttons -->
+            <div id="mainMenuButtons">
+                <button id="startButton" class="btn-game default">START GAME</button>
+                <button id="customizeButton" class="btn-game customize">CUSTOMIZE BIRD</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game Constants
+        const CANVAS = document.getElementById('gameCanvas');
+        const CTX = CANVAS.getContext('2d');
+        const STATUS_BOX = document.getElementById('status-box');
+        const STATUS_TITLE = document.getElementById('status-title');
+        const STATUS_MESSAGE = document.getElementById('status-message');
+        const START_BUTTON = document.getElementById('startButton');
+        const MAIN_MENU_BUTTONS = document.getElementById('mainMenuButtons');
+        const CUSTOMIZE_BUTTON = document.getElementById('customizeButton');
+        const COLOR_SHOP = document.getElementById('colorShop');
+        const COLOR_GRID = document.getElementById('colorGrid');
+        const SHOP_BACK_BUTTON = document.getElementById('shopBackButton');
+        
+        // Constants for AI Feature
+        const AIBRIEFING_BTN = document.getElementById('aiBriefingButton');
+        const AI_ANALYSIS_OUTPUT = document.getElementById('aiAnalysisOutput');
+        const AI_LOADING_SPINNER = document.getElementById('aiLoadingSpinner');
+        
+        // Constants for Key/Revive Feature
+        const REVIVE_OPTIONS = document.getElementById('reviveOptions');
+        const USE_KEY_BUTTON = document.getElementById('useKeyButton');
+        const CONTINUE_BUTTON = document.getElementById('continueButton');
+        const KEY_COUNT_DISPLAY = document.getElementById('keyCountDisplay');
+        
+        const COIN_SIZE = 15;
+        const KEY_SIZE = 20;
+        const COST_PER_COLOR = 10;
+
+        // --- VISUAL CONSTANTS ---
+        const SKY_COLOR = '#87CEEB';    
+        const GRASS_COLOR = '#6AA84F';  
+        const PIPE_BODY_COLOR = '#4CAF50'; 
+        const PIPE_HEAD_COLOR = '#38761D'; 
+        const KEY_COLOR = '#F4D03F';    
+
+        // Bird Color Definitions for Shop
+        const BIRD_COLORS_DEFINITIONS = {
+            'Red': { primary: '#C0392B', secondary: 'black', beak: '#F39C12', cost: 0 },
+            'Yellow': { primary: '#F1C40F', secondary: 'black', beak: '#E67E22', cost: COST_PER_COLOR },
+            'Green': { primary: '#2ECC71', secondary: 'black', beak: '#27AE60', cost: COST_PER_COLOR },
+            'Blue': { primary: '#3498DB', secondary: 'black', beak: '#2980B9', cost: COST_PER_COLOR },
+            'Orange': { primary: '#E67E22', secondary: 'black', beak: '#F39C12', cost: COST_PER_COLOR },
+            'Purple': { primary: '#9B59B6', secondary: 'white', beak: '#8E44AD', cost: COST_PER_COLOR },
+            'Pink': { primary: '#FFB6C1', secondary: 'black', beak: '#FF69B4', cost: COST_PER_COLOR },
+            'Black': { primary: '#2C3E50', secondary: 'white', beak: 'white', cost: COST_PER_COLOR },
+            'White': { primary: '#ECF0F1', secondary: 'black', beak: '#F39C12', cost: COST_PER_COLOR },
+            'Brown': { primary: '#A0522D', secondary: 'black', beak: '#D2B48C', cost: COST_PER_COLOR }
+        };
+
+        // --- NEW AUDIO VARIABLES ---
+        let synth;
+        let gameLoopSequence;
+        let audioInitialized = false;
+        // ---------------------------
+
+        // Game state variables
+        let gameRunning = false;
+        let score = 0;
+        let bestScore = localStorage.getItem('flappyBestScore') || 0;
+        let frameCount = 0;
+        
+        // Customization State
+        let birdColors = {};
+        let selectedColorName = 'Red';
+        
+        // Session-only stats (reset every game)
+        let coinsCollectedThisRun = 0; 
+        let keysGainedThisRun = 0;    
+        
+        // Persistent stats (loaded in init, saved on game over)
+        let totalCoins = 0; 
+        let totalKeys = 0;  
+        
+        // Physics constants
+        const GRAVITY = 0.5;
+        const JUMP_VELOCITY = -8;
+        const PIPE_SPEED = 3;
+        const PIPE_WIDTH = 52;
+        const PIPE_GAP = 120; // Vertical gap height
+        const PIPE_SPACING = 150; // Horizontal spacing between pipe pairs
+
+        // Bird object
+        let bird = {
+            x: 0, 
+            y: 0, 
+            radius: 12,
+            velocity: 0,
+            angle: 0,
+            // colorProps will be set in init()
+            colorProps: BIRD_COLORS_DEFINITIONS['Red']
+        };
+
+        let pipes = [];
+        let coins = []; // Array for multiple coin objects
+        let key = null; // Single key object
+
+        // --- Gemini API Setup and Utilities ---
+        
+        const apiKey = ""; // Leave empty. The environment will inject the key.
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+        /**
+         * Retries a fetch request using exponential backbackoff to handle transient errors.
+         */
+        async function exponentialBackoffFetch(url, options, maxRetries = 5, delay = 1000) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.status !== 429) { 
+                        return response;
+                    }
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, delay * (2 ** i)));
+            }
+            throw new Error('API call failed after multiple retries.');
+        }
+
+        /**
+         * Calls the Gemini API to get a game performance analysis.
+         */
+        async function callGeminiApi(userQuery, systemPrompt) {
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const options = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            };
+
+            try {
+                const response = await exponentialBackoffFetch(GEMINI_API_URL, options);
+                const result = await response.json();
+                
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "FlappyBot 2000 has malfunctioned. Your performance was too complex to compute.";
+                return text.trim();
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                return "ERROR: FlappyBot 2000 is offline. Try again later.";
+            }
+        }
+
+        /**
+         * Triggers the AI analysis and updates the status box.
+         * @param {object} runStats - Object containing stats of the just-ended run.
+         */
+        async function getAIBriefing(runStats) {
+            // Hide button, show loading
+            AIBRIEFING_BTN.classList.add('hidden');
+            AI_ANALYSIS_OUTPUT.classList.add('hidden');
+            AI_LOADING_SPINNER.classList.remove('hidden');
+            
+            const currentBest = bestScore;
+
+            const systemPrompt = "You are 'FlappyBot 2000', a retro 8-bit game analysis AI. Your tone is dramatically sarcastic and overly critical, but occasionally encouraging. Keep your response to one short paragraph (max 3 sentences) that fits neatly in a small box, starting with 'ANALYSIS: '";
+            
+            const userQuery = `The player just completed a game of Flappy Bird. Their final score was ${runStats.score}, they collected ${runStats.coins} coins, and have a total of ${totalKeys} life keys left in their balance. The current high score is ${currentBest}. Provide a brief, retro-themed, sarcastic commentary on this performance.`;
+
+            const analysis = await callGeminiApi(userQuery, systemPrompt);
+
+            // Update output
+            AI_ANALYSIS_OUTPUT.textContent = analysis;
+            
+            // Hide loading, show output
+            AI_LOADING_SPINNER.classList.add('hidden');
+            AI_ANALYSIS_OUTPUT.classList.remove('hidden');
+        }
+
+        // --- Audio Functions ---
+
+        function initializeAudio() {
+            if (audioInitialized) return;
+            
+            // 1. Create a simple retro synthesizer (square wave)
+            synth = new Tone.Synth({
+                oscillator: { type: "square" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.2,
+                    release: 0.5,
+                },
+            }).toDestination();
+
+            // 2. Define the new, energetic music sequence (C major scale fragments)
+            const notes = ["C5", "G4", "A4", "F4", "D5", "A4", "G4", "E5"];
+            gameLoopSequence = new Tone.Sequence((time, note) => {
+                synth.triggerAttackRelease(note, "8n", time);
+            }, notes, "4n").start(0); 
+
+            Tone.Transport.bpm.value = 140; // Increased speed for energy
+            audioInitialized = true;
+        }
+
+        function startMusic() {
+            if (!audioInitialized) {
+                initializeAudio();
+            }
+            
+            // Start the Tone transport and the sequence
+            Tone.Transport.start();
+            gameLoopSequence.start();
+        }
+
+        function stopMusic() {
+            if (gameLoopSequence) {
+                gameLoopSequence.stop();
+            }
+            // Keep Tone.Transport running to allow fast restarts, but silence the sequence
+        }
+
+        // --- Customization Functions ---
+
+        function saveColorState() {
+            localStorage.setItem('flappyBirdColors', JSON.stringify(birdColors));
+            localStorage.setItem('flappySelectedColor', selectedColorName);
+        }
+
+        function updateBirdColor(colorName) {
+            if (birdColors[colorName] && birdColors[colorName].unlocked) {
+                selectedColorName = colorName;
+                bird.colorProps = birdColors[colorName];
+                saveColorState();
+                
+                // Redraw the screen immediately to show the new bird color
+                CTX.clearRect(0, 0, CANVAS.width, CANVAS.height);
+                drawBackground(); 
+                drawGround();
+                drawBird();
+                showColorShop(); // Refresh the shop to show selected status
+            }
+        }
+
+        function buyColor(colorName, cost) {
+            if (totalCoins >= cost) {
+                totalCoins -= cost;
+                localStorage.setItem('flappyTotalCoins', totalCoins);
+                
+                birdColors[colorName].unlocked = true;
+                saveColorState();
+                
+                // Immediately select the purchased color
+                updateBirdColor(colorName);
+                
+                // Show confirmation in status message
+                STATUS_MESSAGE.innerHTML = `<span style="color:${KEY_COLOR};">PURCHASE SUCCESS!</span><br>Selected ${colorName} bird. Total Coins: ${totalCoins}`;
+            } else {
+                STATUS_MESSAGE.innerHTML = `<span style="color:#C0392B;">NOT ENOUGH COINS!</span><br>Cost: ${cost}, You have: ${totalCoins}`;
+            }
+        }
+
+        function showColorShop() {
+            // Hide main menu, show shop
+            stopMusic(); // Stop music when in shop
+            MAIN_MENU_BUTTONS.classList.add('hidden');
+            COLOR_SHOP.classList.remove('hidden');
+            STATUS_TITLE.textContent = 'CUSTOMIZE BIRD';
+            
+            // Show current coin balance
+            STATUS_MESSAGE.innerHTML = `
+                <div class="text-xs mb-3">
+                    <span style="color:#FFD700;">YOUR COINS:</span> ${totalCoins}<br>
+                    <span style="color:#f7d560;">Current Bird:</span> ${selectedColorName}
+                </div>
+            `;
+            
+            COLOR_GRID.innerHTML = '';
+            
+            Object.keys(BIRD_COLORS_DEFINITIONS).forEach(name => {
+                const colorDef = BIRD_COLORS_DEFINITIONS[name];
+                const isUnlocked = birdColors[name].unlocked;
+                const isSelected = selectedColorName === name;
+
+                const button = document.createElement('button');
+                button.classList.add('p-2', 'rounded-lg', 'text-xs', 'font-mono', 'shadow-md', 'flex', 'flex-col', 'items-center', 'w-20', 'h-20', 'justify-center');
+                button.style.backgroundColor = colorDef.primary;
+                button.style.color = colorDef.secondary;
+                button.style.borderColor = colorDef.secondary;
+                
+                if (isSelected) {
+                    button.innerHTML = `${name}<br><span class="text-sm">-> ACTIVE <-</span>`;
+                    button.style.border = '4px solid white';
+                } else if (isUnlocked) {
+                    button.innerHTML = `${name}<br><span class="text-sm">SELECT</span>`;
+                    button.style.border = '4px solid ' + colorDef.secondary;
+                    button.onclick = () => updateBirdColor(name);
+                } else {
+                    button.innerHTML = `${name}<br><span class="text-sm">BUY (${colorDef.cost})</span>`;
+                    button.style.border = '4px solid #382800';
+                    button.onclick = () => buyColor(name, colorDef.cost);
+                }
+                
+                COLOR_GRID.appendChild(button);
+            });
+            
+            SHOP_BACK_BUTTON.onclick = () => showStatus('Flappy Bird', 'INITIAL_SCREEN');
+        }
+
+
+        // --- Drawing Functions ---
+        
+        // Draws the sky and background scenery
+        function drawBackground() {
+            // Draw Blue Sky
+            CTX.fillStyle = SKY_COLOR;
+            CTX.fillRect(0, 0, CANVAS.width, CANVAS.height);
+            
+            // Simple white clouds (static)
+            CTX.fillStyle = 'white';
+            CTX.beginPath();
+            CTX.arc(100, 80, 30, 0, Math.PI * 2);
+            CTX.arc(140, 70, 25, 0, Math.PI * 2);
+            CTX.arc(120, 90, 35, 0, Math.PI * 2);
+            CTX.fill();
+            
+            CTX.beginPath();
+            CTX.arc(CANVAS.width - 150, 100, 20, 0, Math.PI * 2);
+            CTX.arc(CANVAS.width - 120, 90, 30, 0, Math.PI * 2);
+            CTX.arc(CANVAS.width - 90, 110, 25, 0, Math.PI * 2);
+            CTX.fill();
+        }
+
+        // Draws the Angry Bird-inspired sprite
+        function drawBird() {
+            const birdRadius = bird.radius * 1.5; 
+            const primaryColor = bird.colorProps.primary;
+            const secondaryColor = bird.colorProps.secondary;
+            const beakColor = bird.colorProps.beak || '#F39C12'; // Default beak color
+            
+            CTX.save();
+            CTX.translate(bird.x, bird.y);
+            bird.angle = Math.min(Math.PI / 4, bird.velocity * 0.15);
+            CTX.rotate(bird.angle);
+
+            // 1. Bird Body
+            CTX.fillStyle = primaryColor; 
+            CTX.beginPath();
+            CTX.arc(0, 0, birdRadius, 0, Math.PI * 2);
+            CTX.fill();
+            CTX.strokeStyle = '#382800';
+            CTX.lineWidth = 2;
+            CTX.stroke();
+
+            // 2. Eyes (White)
+            const eyeRadius = bird.radius * 0.5;
+            CTX.fillStyle = 'white';
+            CTX.beginPath();
+            CTX.arc(birdRadius * 0.4, -eyeRadius * 0.5, eyeRadius, 0, Math.PI * 2);
+            CTX.arc(-birdRadius * 0.4, -eyeRadius * 0.5, eyeRadius, 0, Math.PI * 2);
+            CTX.fill();
+            CTX.strokeStyle = secondaryColor; // Dynamic outline
+            CTX.stroke();
+
+            // 3. Pupils (Dynamic Secondary Color) - Angry look, slightly turned in
+            const pupilRadius = eyeRadius * 0.4;
+            CTX.fillStyle = secondaryColor;
+            CTX.beginPath();
+            CTX.arc(birdRadius * 0.4 - 2, -eyeRadius * 0.5 - 1, pupilRadius, 0, Math.PI * 2); 
+            CTX.arc(-birdRadius * 0.4 + 2, -eyeRadius * 0.5 - 1, pupilRadius, 0, Math.PI * 2);
+            CTX.fill();
+
+            // 4. Beak (Triangle)
+            CTX.fillStyle = beakColor;
+            CTX.beginPath();
+            CTX.moveTo(birdRadius, 0);
+            CTX.lineTo(birdRadius + 8, -4);
+            CTX.lineTo(birdRadius + 8, 4);
+            CTX.fill();
+            CTX.strokeStyle = secondaryColor; // Dynamic outline
+            CTX.stroke();
+
+            // 5. Angry Eyebrows (Dynamic Secondary Color)
+            CTX.fillStyle = secondaryColor;
+            CTX.fillRect(-birdRadius * 1.1, -birdRadius * 0.8, birdRadius * 2.2, bird.radius * 0.3);
+
+            CTX.restore();
+        }
+
+        // Draws the pipes with vibrant green shading
+        function drawPipe(pipe) {
+            // Top Pipe
+            const topHeight = pipe.y_gap;
+            CTX.fillStyle = PIPE_BODY_COLOR;
+            CTX.fillRect(pipe.x, 0, PIPE_WIDTH, topHeight);
+            
+            // Top Pipe Head (Wider, darker green)
+            CTX.fillStyle = PIPE_HEAD_COLOR;
+            CTX.fillRect(pipe.x - 4, topHeight - 25, PIPE_WIDTH + 8, 25); 
+            
+            // Bottom Pipe
+            const bottomY = pipe.y_gap + PIPE_GAP;
+            const bottomHeight = CANVAS.height - bottomY;
+            CTX.fillStyle = PIPE_BODY_COLOR;
+            CTX.fillRect(pipe.x, bottomY, PIPE_WIDTH, bottomHeight);
+            
+            // Bottom Pipe Head (Wider, darker green)
+            CTX.fillStyle = PIPE_HEAD_COLOR;
+            CTX.fillRect(pipe.x - 4, bottomY, PIPE_WIDTH + 8, 25);
+
+            // Draw outlines for depth
+            CTX.strokeStyle = '#382800';
+            CTX.lineWidth = 2;
+            CTX.strokeRect(pipe.x, 0, PIPE_WIDTH, topHeight);
+            CTX.strokeRect(pipe.x, bottomY, PIPE_WIDTH, bottomHeight);
+            
+            // Add a subtle inner shadow/highlight for depth
+            CTX.fillStyle = 'rgba(255, 255, 255, 0.1)'; // Highlight
+            CTX.fillRect(pipe.x, 0, 5, topHeight);
+            CTX.fillRect(pipe.x, bottomY, 5, bottomHeight);
+        }
+        
+        function drawCoin(coin) {
+            CTX.save();
+            CTX.translate(coin.x + coin.radius, coin.y + coin.radius);
+
+            CTX.fillStyle = '#FFD700'; // Gold
+            CTX.beginPath();
+            CTX.arc(0, 0, coin.radius, 0, Math.PI * 2);
+            CTX.fill();
+            
+            CTX.strokeStyle = '#B8860B'; // Dark Gold border
+            CTX.lineWidth = 2;
+            CTX.stroke();
+            
+            // Draw a line to represent the coin groove
+            CTX.strokeStyle = '#B8860B';
+            CTX.lineWidth = 1;
+            CTX.beginPath();
+            CTX.moveTo(0, -coin.radius + 3);
+            CTX.lineTo(0, coin.radius - 3);
+            CTX.stroke();
+
+            CTX.restore();
+        }
+
+        // Draws the key in a key shape
+        function drawKey(key) {
+            if (!key) return;
+
+            CTX.save();
+            CTX.translate(key.x + KEY_SIZE / 2, key.y + KEY_SIZE / 2);
+            
+            CTX.fillStyle = KEY_COLOR;
+            CTX.strokeStyle = '#382800'; 
+            CTX.lineWidth = 2;
+            
+            const headRadius = KEY_SIZE / 3;
+            const stemWidth = KEY_SIZE / 4;
+            const stemLength = KEY_SIZE;
+            
+            // 1. Key Head (Circle)
+            CTX.beginPath();
+            CTX.arc(0, 0, headRadius, 0, Math.PI * 2);
+            CTX.fill();
+            CTX.stroke();
+
+            // 2. Key Stem (Rectangle)
+            CTX.fillRect(-stemWidth / 2, headRadius, stemWidth, stemLength);
+            CTX.strokeRect(-stemWidth / 2, headRadius, stemWidth, stemLength);
+
+            // 3. Key Teeth (Small Rectangles)
+            const toothSize = stemWidth / 2;
+            CTX.fillRect(stemWidth / 2, headRadius + stemLength * 0.7, toothSize, toothSize);
+            CTX.strokeRect(stemWidth / 2, headRadius + stemLength * 0.7, toothSize, toothSize);
+            
+            CTX.fillRect(stemWidth / 2, headRadius + stemLength * 0.9, toothSize, toothSize);
+            CTX.strokeRect(stemWidth / 2, headRadius + stemLength * 0.9, toothSize, toothSize);
+
+            CTX.restore();
+        }
+
+
+        function drawScore() {
+            // Setup for Score
+            CTX.fillStyle = 'white';
+            CTX.font = '24px "Press Start 2P"';
+            CTX.textAlign = 'center';
+            CTX.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            CTX.shadowBlur = 5;
+            CTX.shadowOffsetX = 2;
+            CTX.shadowOffsetY = 2;
+
+            CTX.fillText(score, CANVAS.width / 2, 50);
+
+            CTX.shadowBlur = 0;
+            CTX.shadowOffsetX = 0;
+            CTX.shadowOffsetY = 0;
+            
+            // Draw Coins and Keys
+            CTX.font = '16px "Press Start 2P"';
+            
+            // Coins (Top Left)
+            CTX.fillStyle = '#FFD700'; // Gold color for coin text
+            CTX.textAlign = 'left';
+            CTX.fillText(`COINS: ${coinsCollectedThisRun}`, 10, 30);
+            
+            // Keys (Top Right)
+            CTX.fillStyle = KEY_COLOR; // Key color for key text
+            CTX.textAlign = 'right';
+            CTX.fillText(`KEYS: ${totalKeys} (+${keysGainedThisRun})`, CANVAS.width - 10, 30);
+        }
+
+        // Draws the flat grassy ground
+        function drawGround() {
+            const groundHeight = 50;
+            const groundY = CANVAS.height - groundHeight;
+
+            // Draw flat grass ground
+            CTX.fillStyle = GRASS_COLOR;
+            CTX.fillRect(0, groundY, CANVAS.width, groundHeight);
+
+            // Draw border line
+            CTX.strokeStyle = '#382800';
+            CTX.lineWidth = 4;
+            CTX.beginPath();
+            CTX.moveTo(0, groundY);
+            CTX.lineTo(CANVAS.width, groundY);
+            CTX.stroke();
+        }
+
+        // --- Collectible Logic ---
+
+        const KEY_SPAWN_CHANCE = 0.1; // 10% chance to spawn a key per pipe set
+
+        function generatePipe() {
+            const minHeight = 80;
+            const groundHeight = 50;
+            const maxHeight = CANVAS.height - PIPE_GAP - 80 - groundHeight; 
+            if (maxHeight <= minHeight) return; 
+            
+            const randomY = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            const newPipe = {
+                x: CANVAS.width,
+                y_gap: randomY,
+                passed: false
+            };
+            pipes.push(newPipe);
+            
+            // --- Coin Spawning ---
+            const numCoins = Math.floor(Math.random() * 3) + 1; // 1 to 3 coins
+            for (let i = 0; i < numCoins; i++) {
+                const coinY = randomY + (PIPE_GAP / (numCoins + 1)) * (i + 1) - COIN_SIZE / 2;
+                coins.push({
+                    x: newPipe.x + PIPE_WIDTH / 2 - COIN_SIZE / 2, // Centered horizontally
+                    y: coinY, 
+                    radius: COIN_SIZE / 2
+                });
+            }
+
+            // --- Key Spawning (Rare) ---
+            // Only spawn if no key is currently on screen
+            if (!key && Math.random() < KEY_SPAWN_CHANCE) { 
+                key = {
+                    x: newPipe.x + PIPE_WIDTH / 2 - KEY_SIZE / 2,
+                    y: randomY + PIPE_GAP / 2 - KEY_SIZE / 2, // Centered vertically in gap
+                    width: KEY_SIZE,
+                    height: KEY_SIZE
+                };
+            }
+        }
+        
+        function updateCoins() {
+            const hitCoins = [];
+            
+            coins.forEach((coin, index) => {
+                coin.x -= PIPE_SPEED;
+
+                // Collision Check (Bird center to Coin center)
+                const dx = (bird.x) - (coin.x + coin.radius);
+                const dy = (bird.y) - (coin.y + coin.radius);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < bird.radius + coin.radius) {
+                    coinsCollectedThisRun++;
+                    hitCoins.push(index);
+                }
+            });
+
+            // Remove collected coins (iterate backwards to avoid index issues)
+            for (let i = hitCoins.length - 1; i >= 0; i--) {
+                coins.splice(hitCoins[i], 1);
+            }
+
+            // Remove off-screen coins
+            coins = coins.filter(coin => coin.x > -COIN_SIZE);
+        }
+
+        function updateKey() {
+            if (!key) return;
+
+            key.x -= PIPE_SPEED;
+            
+            // Collision Check (Bird center to Key center)
+            const dx = (bird.x) - (key.x + key.width / 2);
+            const dy = (bird.y) - (key.y + key.height / 2);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < bird.radius + key.width / 3) {
+                keysGainedThisRun++;
+                key = null; // Key collected, remove it
+            }
+
+            // Remove off-screen key
+            if (key && key.x < -KEY_SIZE) {
+                key = null;
+            }
+        }
+
+        // --- Game Logic ---
+
+        function updateBird() {
+            bird.velocity += GRAVITY;
+            bird.y += bird.velocity;
+        }
+
+        function updatePipes() {
+            // Move pipes
+            pipes.forEach(pipe => {
+                pipe.x -= PIPE_SPEED;
+            });
+
+            // Generate new pipes
+            frameCount++;
+            // Calculate pipe spacing dynamically based on canvas width
+            if (frameCount % Math.floor(PIPE_SPACING * (CANVAS.width / 600)) === 0) {
+                generatePipe();
+            }
+
+            // Remove off-screen pipes
+            pipes = pipes.filter(pipe => pipe.x > -PIPE_WIDTH);
+
+            // Check for scoring
+            pipes.forEach(pipe => {
+                if (pipe.x + PIPE_WIDTH < bird.x - bird.radius && !pipe.passed) {
+                    score++;
+                    pipe.passed = true;
+                }
+            });
+        }
+
+        function checkCollision() {
+            const groundHeight = 50;
+            // 1. Collision with Ground
+            if (bird.y + bird.radius >= CANVAS.height - groundHeight) { 
+                bird.y = CANVAS.height - bird.radius - groundHeight;
+                return true;
+            }
+
+            // 2. Collision with Ceiling
+            if (bird.y - bird.radius <= 0) {
+                bird.y = bird.radius;
+                bird.velocity = 0;
+            }
+
+            // 3. Collision with Pipes
+            for (const pipe of pipes) {
+                if (bird.x + bird.radius > pipe.x && bird.x - bird.radius < pipe.x + PIPE_WIDTH) {
+                    const hitTop = bird.y - bird.radius < pipe.y_gap;
+                    const bottomY = pipe.y_gap + PIPE_GAP;
+                    const hitBottom = bird.y + bird.radius > bottomY;
+
+                    if (hitTop || hitBottom) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            CTX.clearRect(0, 0, CANVAS.width, CANVAS.height);
+
+            // 1. Draw Background (Sky)
+            drawBackground(); 
+
+            // Update game state
+            updateBird();
+            updatePipes();
+            updateCoins(); 
+            updateKey();   
+
+            if (checkCollision()) {
+                endGame();
+                return;
+            }
+
+            // Draw everything
+            pipes.forEach(drawPipe);
+            coins.forEach(drawCoin); 
+            drawKey(key);            
+            drawGround();
+            drawBird();
+            drawScore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Control handlers
+        function flap() {
+            // IMPORTANT: Resume audio context on first user interaction
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+
+            if (!gameRunning) {
+                startGame();
+            }
+            bird.velocity = JUMP_VELOCITY;
+        }
+
+        function handleInput(event) {
+            if (event.code === 'Space' || event.type === 'click' || event.type === 'touchstart') {
+                flap();
+            }
+        }
+
+        function setupControls() {
+            document.addEventListener('keydown', handleInput);
+            CANVAS.addEventListener('click', handleInput);
+            CANVAS.addEventListener('touchstart', handleInput);
+        }
+
+        // --- Game State Management ---
+
+        function init() {
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+            
+            initializeAudio(); // Initialize audio right away
+
+            // Load persistent stats
+            bestScore = localStorage.getItem('flappyBestScore') || 0;
+            totalCoins = parseInt(localStorage.getItem('flappyTotalCoins') || 0); 
+            totalKeys = parseInt(localStorage.getItem('flappyTotalKeys') || 0);  
+            
+            // Load customization state
+            const savedColors = JSON.parse(localStorage.getItem('flappyBirdColors'));
+            if (savedColors) {
+                birdColors = savedColors;
+            } else {
+                birdColors = BIRD_COLORS_DEFINITIONS;
+                Object.keys(birdColors).forEach(key => birdColors[key].unlocked = (key === 'Red'));
+            }
+            selectedColorName = localStorage.getItem('flappySelectedColor') || 'Red';
+            bird.colorProps = birdColors[selectedColorName] || birdColors['Red'];
+            
+            // Show Home Screen with persistent stats
+            showStatus('Flappy Bird', 'INITIAL_SCREEN'); 
+            START_BUTTON.onclick = startGame;
+            CUSTOMIZE_BUTTON.onclick = showColorShop;
+            SHOP_BACK_BUTTON.onclick = () => showStatus('Flappy Bird', 'INITIAL_SCREEN');
+            setupControls();
+            
+            CTX.clearRect(0, 0, CANVAS.width, CANVAS.height);
+            drawBackground(); 
+            drawGround();
+            drawBird(); 
+            drawScore();
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            CANVAS.width = container.clientWidth;
+            CANVAS.height = container.clientHeight;
+
+            bird.x = CANVAS.width / 4;
+            bird.y = CANVAS.height / 2;
+        }
+
+        function startGame() {
+            gameRunning = true;
+            score = 0;
+            frameCount = 0;
+            pipes = [];
+            coins = [];
+            key = null;
+            
+            // Reset session stats
+            coinsCollectedThisRun = 0; 
+            keysGainedThisRun = 0; 
+            
+            bird.y = CANVAS.height / 2;
+            bird.velocity = 0;
+            
+            // Hide status box elements related to menus/shop
+            STATUS_BOX.classList.add('hidden');
+            AIBRIEFING_BTN.classList.add('hidden');
+            AI_ANALYSIS_OUTPUT.classList.add('hidden');
+            AI_LOADING_SPINNER.classList.add('hidden');
+            REVIVE_OPTIONS.classList.add('hidden');
+            MAIN_MENU_BUTTONS.classList.add('hidden');
+            COLOR_SHOP.classList.add('hidden');
+
+            // NEW: Start the music loop
+            startMusic();
+
+            generatePipe(); 
+            gameLoop();
+        }
+        
+        // Function to reset bird state and continue game (uses persistent totalKeys)
+        function revive() {
+            if (totalKeys > 0) {
+                totalKeys--; // Decrement persistent balance
+                localStorage.setItem('flappyTotalKeys', totalKeys); // Save balance immediately
+                
+                // Reset bird's position slightly and give a small jump
+                bird.y = CANVAS.height / 2;
+                bird.velocity = JUMP_VELOCITY * 0.5; 
+                
+                // Clear all current pipes and collectibles to give the player a clean start
+                pipes = [];
+                coins = [];
+                key = null;
+                generatePipe(); // Immediately spawn a new pipe set
+                
+                // Remove status box and resume game loop
+                STATUS_BOX.classList.add('hidden');
+                gameRunning = true;
+                gameLoop();
+            } else {
+                showGameOverScreen(); // Fallback
+            }
+        }
+        
+        // Show the prompt to use a key
+        function showRevivePrompt() {
+            gameRunning = false;
+            stopMusic(); // NEW: Stop music when pausing for revive prompt
+            
+            START_BUTTON.classList.add('hidden');
+            AIBRIEFING_BTN.classList.add('hidden');
+            AI_ANALYSIS_OUTPUT.classList.add('hidden');
+            
+            STATUS_TITLE.textContent = 'COLLISION!';
+            STATUS_MESSAGE.innerHTML = `You crashed with a score of ${score}.<br>You have ${totalKeys} keys. Use one to continue?`;
+            
+            KEY_COUNT_DISPLAY.textContent = totalKeys;
+            
+            REVIVE_OPTIONS.classList.remove('hidden');
+            STATUS_BOX.classList.remove('hidden');
+            
+            USE_KEY_BUTTON.onclick = revive;
+            CONTINUE_BUTTON.onclick = showGameOverScreen;
+        }
+
+        // Function to show the final game over screen and transition to Home
+        function showGameOverScreen() {
+             stopMusic(); // NEW: Stop music after game over
+             // Hide revive options
+            REVIVE_OPTIONS.classList.add('hidden');
+            
+            // --- Capture Session Stats for AI Report/Display ---
+            const finalScore = score;
+            const finalCoinsGained = coinsCollectedThisRun;
+            const finalKeysGained = keysGainedThisRun;
+            
+            // --- PERSISTENT STORAGE UPDATE --- 
+            // Add collected session resources to totals
+            totalCoins += finalCoinsGained;
+            totalKeys += finalKeysGained; 
+            
+            localStorage.setItem('flappyTotalCoins', totalCoins);
+            localStorage.setItem('flappyTotalKeys', totalKeys);
+            // ---------------------------------
+            
+            // Reset session stats (after saving, before showing main menu)
+            coinsCollectedThisRun = 0; 
+            keysGainedThisRun = 0; 
+            
+            // Show Game Results
+            STATUS_TITLE.textContent = 'GAME OVER';
+            STATUS_MESSAGE.innerHTML = `
+                <div style="text-align: left; margin: 0 auto; display: inline-block; line-height: 1.8; font-size: 0.8rem;">
+                    <span style="color:#fff;">FINAL SCORE:</span> ${finalScore}<br>
+                    <span style="color:#FFD700;">COINS GAINED:</span> ${finalCoinsGained}<br>
+                    <span style="color:${KEY_COLOR};">KEYS GAINED:</span> ${finalKeysGained}<br>
+                    <div style="height: 10px; border-bottom: 2px dashed #777; margin: 10px 0;"></div>
+                    <span style="color:#FFD700;">NEW TOTAL COINS:</span> ${totalCoins}<br>
+                    <span style="color:${KEY_COLOR};">NEW TOTAL KEYS:</span> ${totalKeys}<br>
+                </div>
+            `;
+            
+            // Change button to Continue/Home
+            START_BUTTON.innerText = 'CONTINUE TO HOME';
+            // Set the onclick to show the main menu dashboard
+            START_BUTTON.onclick = () => showStatus('Flappy Bird', 'INITIAL_SCREEN'); 
+            
+            // Show AI Button
+            AIBRIEFING_BTN.classList.remove('hidden');
+            // Bind AI analysis using the final score of the run
+            AIBRIEFING_BTN.onclick = () => getAIBriefing({ 
+                score: finalScore, 
+                coins: finalCoinsGained, 
+                keys: finalKeysGained 
+            });
+            START_BUTTON.classList.remove('hidden');
+            
+            // Final cleanup
+            bird.velocity = 0;
+            pipes = [];
+            coins = [];
+            key = null;
+        }
+
+        function endGame() {
+            gameRunning = false;
+            
+            // Update best score
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('flappyBestScore', bestScore);
+            }
+            
+            // Check for revive key
+            if (totalKeys > 0) {
+                showRevivePrompt();
+                return; 
+            }
+
+            // Default Game Over (if no keys)
+            showGameOverScreen();
+        }
+        
+        function showStatus(title, message) {
+            stopMusic(); // NEW: Stop music when entering any status/menu screen (Home, Shop)
+
+            // Re-load stats for the most up-to-date dashboard view
+            bestScore = localStorage.getItem('flappyBestScore') || 0;
+            totalCoins = parseInt(localStorage.getItem('flappyTotalCoins') || 0); 
+            totalKeys = parseInt(localStorage.getItem('flappyTotalKeys') || 0); 
+            
+            STATUS_TITLE.textContent = title;
+            
+            // Hide all non-essential elements for the main menu view
+            REVIVE_OPTIONS.classList.add('hidden');
+            AIBRIEFING_BTN.classList.add('hidden');
+            AI_ANALYSIS_OUTPUT.classList.add('hidden');
+            AI_LOADING_SPINNER.classList.add('hidden');
+            COLOR_SHOP.classList.add('hidden');
+            
+            // Show main menu buttons
+            MAIN_MENU_BUTTONS.classList.remove('hidden');
+            START_BUTTON.classList.remove('hidden');
+            
+            // Custom display for the initial home screen
+            if (message === 'INITIAL_SCREEN') {
+                STATUS_MESSAGE.innerHTML = `
+                    <div style="text-align: left; margin: 0 auto; display: inline-block; line-height: 1.8;">
+                        <span style="color:#f7d560;">HIGH SCORE:</span> ${bestScore}<br>
+                        <span style="color:#FFD700;">TOTAL COINS:</span> ${totalCoins}<br>
+                        <span style="color:${KEY_COLOR};">KEYS AVAILABLE:</span> ${totalKeys}<br>
+                    </div>
+                    <br>
+                    Press SPACE or Click to Start/Jump
+                `;
+                 // Set button back to START GAME and bind the start function
+                 START_BUTTON.innerText = 'START GAME';
+                 START_BUTTON.onclick = startGame;
+            } else {
+                 STATUS_MESSAGE.innerHTML = message;
+            }
+
+            STATUS_BOX.classList.remove('hidden');
+        }
+
+
+        // Wait for the window to load before initializing the game
+        window.onload = init;
+
+    </script>
+</body>
+</html>
