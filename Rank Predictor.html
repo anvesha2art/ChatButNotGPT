@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Simulated Rank Predictor</title>
+    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for Inter font --><script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#0f4c75', /* Dark Teal Blue (Engineering) */
+                        'primary-light': '#3282b8',
+                        'medical': '#c24100', /* Orange-Brown (Medical) */
+                        'law': '#5b21b6', /* Deep Purple (Law) */
+                        'cuet': '#059669', /* Emerald Green (CUET) */
+                        'accent': '#bbe1fa',
+                        'background': '#f0f4f8',
+                        'text-dark': '#2c3e50',
+                        'text-light': '#6c7a89',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+        
+        body {
+            background: linear-gradient(to right bottom, #e0f2fe, #bbdefb); /* Light blue gradient */
+        }
+
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #aab5c6;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #7a8698;
+        }
+
+        .card-glow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .card-glow:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        .input-field {
+            border-color: #cbd5e0;
+            transition: all 0.2s ease;
+        }
+        .input-field:focus {
+            border-color: #0f4c75;
+            box-shadow: 0 0 0 3px rgba(15, 76, 117, 0.2);
+        }
+
+        /* Custom Toggle Switch for Mode Selection (Four Modes) */
+        .toggle-container {
+            position: relative;
+            width: 100%;
+            height: 48px;
+            background-color: #e2e8f0;
+            border-radius: 9999px;
+            padding: 4px;
+        }
+
+        .toggle-button {
+            transition: color 0.3s ease;
+            width: 25%; /* 4 buttons */
+            height: 100%;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            z-index: 10;
+            position: relative; 
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: calc(25% - 4px); /* 1/4 width minus padding */
+            height: calc(100% - 8px);
+            border-radius: 9999px;
+            background-color: #0f4c75; 
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, background-color 0.3s ease;
+        }
+
+        /* Mode-specific styles and slider transforms */
+        .toggle-container.jee .toggle-slider { transform: translateX(0%); background-color: #0f4c75; }
+        .toggle-container.medical .toggle-slider { transform: translateX(100%); background-color: #c24100; }
+        .toggle-container.clat .toggle-slider { transform: translateX(200%); background-color: #5b21b6; }
+        .toggle-container.cuet .toggle-slider { transform: translateX(300%); background-color: #059669; }
+        
+        /* Text coloring for active button */
+        .toggle-container.jee .button-jee,
+        .toggle-container.medical .button-medical,
+        .toggle-container.clat .button-law,
+        .toggle-container.cuet .button-cuet {
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="font-sans min-h-screen p-4 sm:p-8 text-text-dark">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-3xl overflow-hidden shadow-2xl card-glow">
+        <header class="bg-primary p-6 text-white text-center rounded-t-2xl" id="header-bg">
+            <h1 class="text-4xl font-extrabold mb-1 tracking-tight">Rank Predictor</h1>
+            <p class="text-sm italic opacity-90">Your simulated path to success.</p>
+        </header>
+
+        <!-- Disclaimer Banner --><div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 m-4 rounded-lg shadow-md flex items-center gap-2">
+            <svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0L14.87 8.051a2.002 2.002 0 01-1.748 3.033H6.878a2.002 2.002 0 01-1.748-3.032L8.257 3.099zM10 14a1 1 0 100-2 1 1 0 000 2zm0 4a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"></path></svg>
+            <strong class="font-bold">SIMULATED TOOL:</strong>
+            <span class="block sm:inline">The ranks and cutoffs are illustrative, based on user-defined inputs, and are **not** real-time.</span>
+        </div>
+
+        <main class="p-6 md:p-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Input Form (Col 1 & 2) --><div class="lg:col-span-2 space-y-7">
+                <h2 class="text-3xl font-bold text-text-dark border-b-2 border-accent pb-3">Your Details</h2>
+                
+                <!-- Mode Toggle (4 Modes) -->
+                <div class="toggle-container four-mode flex justify-between items-center relative" id="mode-toggle-container">
+                    <div class="toggle-slider" id="toggle-slider"></div>
+                    <button class="toggle-button button-jee" data-mode="jee">JEE</button>
+                    <button class="toggle-button button-medical" data-mode="medical">NEET</button>
+                    <button class="toggle-button button-law" data-mode="clat">CLAT</button>
+                    <button class="toggle-button button-cuet" data-mode="cuet">CUET</button>
+                </div>
+                
+                <form id="predictionForm" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    
+                    <!-- JEE Inputs (Default) -->
+                    <div id="jee-inputs" class="contents">
+                        <div>
+                            <label for="percentile" class="block text-sm font-semibold text-text-dark mb-1">Mock Test Percentile (%)</label>
+                            <input type="number" id="percentile" name="percentile" min="0" max="100" step="0.01" required
+                                   class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                                   placeholder="e.g., 99.50">
+                            <p class="text-xs text-text-light mt-1">JEE: Percentile is the most impactful factor.</p>
+                        </div>
+                        <div>
+                            <label for="marks" class="block text-sm font-semibold text-text-dark mb-1">Mock Test Marks (out of 360)</label>
+                            <input type="number" id="marks" name="marks" min="0" max="360" step="1"
+                                   class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                                   placeholder="e.g., 200">
+                            <p class="text-xs text-text-light mt-1">Used for minor rank adjustments/tie-breaking.</p>
+                        </div>
+                    </div>
+
+                    <!-- NEET Inputs -->
+                    <div id="neet-inputs" class="hidden contents">
+                        <div class="sm:col-span-2">
+                            <label for="neetScore" class="block text-sm font-semibold text-text-dark mb-1">Mock Test Score (out of 720)</label>
+                            <input type="number" id="neetScore" name="neetScore" min="0" max="720" step="1"
+                                   class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                                   placeholder="e.g., 650">
+                            <p class="text-xs text-text-light mt-1">NEET: Score directly determines the rank.</p>
+                        </div>
+                    </div>
+
+                    <!-- CLAT Inputs -->
+                    <div id="clat-inputs" class="hidden contents">
+                        <div class="sm:col-span-2">
+                            <label for="clatScore" class="block text-sm font-semibold text-text-dark mb-1">Mock Test Score (out of 120)</label>
+                            <input type="number" id="clatScore" name="clatScore" min="0" max="120" step="1"
+                                   class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                                   placeholder="e.g., 90">
+                            <p class="text-xs text-text-light mt-1">CLAT: Score is used to determine NLU preference.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- CUET Inputs (NEW) -->
+                    <div id="cuet-inputs" class="hidden contents">
+                        <div class="sm:col-span-2">
+                            <label for="cuetPercentile" class="block text-sm font-semibold text-text-dark mb-1">Mock Test Percentile (%)</label>
+                            <input type="number" id="cuetPercentile" name="cuetPercentile" min="0" max="100" step="0.01"
+                                   class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                                   placeholder="e.g., 99.80">
+                            <p class="text-xs text-text-light mt-1">CUET: Percentile (or combined score) dictates admission.</p>
+                        </div>
+                    </div>
+
+                    
+                    <div>
+                        <label for="gender" class="block text-sm font-semibold text-text-dark mb-1">Gender</label>
+                        <select id="gender" name="gender" required
+                                class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field appearance-none bg-white shadow-sm">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="category" class="block text-sm font-semibold text-text-dark mb-1">Category</label>
+                        <select id="category" name="category" required
+                                class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field appearance-none bg-white shadow-sm">
+                            <option value="General">General</option>
+                            <option value="EWS">EWS</option>
+                            <option value="OBC-NCL">OBC-NCL</option>
+                            <option value="SC">SC</option>
+                            <option value="ST">ST</option>
+                        </select>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label for="totalStudents" class="block text-sm font-semibold text-text-dark mb-1">Total Expected Test Takers</label>
+                        <input type="number" id="totalStudents" name="totalStudents" min="10000" step="1000" value="1000000"
+                               class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                               placeholder="e.g., 1000000">
+                        <p class="text-xs text-text-light mt-1" id="total-takers-hint">Enter the official number for the current exam year.</p>
+                    </div>
+                    
+                    <div class="sm:col-span-2">
+                        <label for="categoryRatio" class="block text-sm font-semibold text-text-dark mb-1">Category Rank Multiplier (Advanced)</label>
+                        <input type="number" id="categoryRatio" name="categoryRatio" min="0.01" max="1.0" step="0.005" value="0"
+                               class="w-full px-4 py-2 border rounded-lg focus:outline-none input-field shadow-sm"
+                               placeholder="Leave 0 for default">
+                        <p class="text-xs text-text-light mt-1">Override default reservation ratios (e.g., 0.10 for EWS). Leave 0 for default.</p>
+                    </div>
+                </form>
+
+                <button id="predictButton" 
+                        class="w-full py-3 mt-6 text-white bg-primary hover:bg-primary-light transition duration-300 rounded-lg font-bold text-xl shadow-xl transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-primary-light focus:ring-opacity-50 flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    Predict My Rank & Colleges
+                </button>
+            </div>
+            
+            <!-- Output/Results Area (Col 3) --><div class="lg:col-span-1 border-t lg:border-t-0 lg:border-l border-accent pt-6 lg:pt-0 lg:pl-6 space-y-6">
+                <h2 class="text-3xl font-bold text-text-dark mb-4">Simulated Results</h2>
+                
+                <div id="resultsOutput" class="space-y-4">
+                    
+                    <!-- Predicted Ranks Card --><div id="predictedRank" class="card-glow bg-white p-5 rounded-xl shadow-lg border-b-4 border-primary hidden">
+                        <p class="text-sm font-medium text-text-light mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1-8a1 1 0 102 0V6a1 1 0 10-2 0v4z" clip-rule="evenodd"></path></svg>
+                            Simulated Ranks:
+                        </p>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xl font-bold text-primary">All India Rank (AIR)</span>
+                            <span class="text-4xl font-extrabold text-primary-light" id="airValue">N/A</span>
+                        </div>
+                        <div class="flex justify-between items-center border-t border-accent pt-3 mt-3">
+                            <span class="text-md font-semibold text-text-dark" id="crLabel">Category Rank (CR)</span>
+                            <span class="text-2xl font-bold text-yellow-700" id="crValue">N/A</span>
+                        </div>
+                    </div>
+
+                    <div id="recommendations" class="space-y-3 hidden">
+                        <h3 class="text-xl font-bold text-text-dark mt-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.394 2.08a1 1 0 00-.788 0L.245 8.169A1 1 0 001 9.832L4.79 11.2a1 1 0 01.993.89l.86 6.023a1 1 0 00.992.89H17a1 1 0 00.993-.89l.86-6.023a1 1 0 01.992-.89l3.785-1.663a1 1 0 00.755-1.67L10.394 2.08zM12 14a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                            Simulated College Opportunities:
+                        </h3>
+                        <ul id="recommendationList" class="list-none space-y-3">
+                            <!-- Recommendations will be inserted here --></ul>
+                    </div>
+                    
+                    <div id="initialMessage" class="card-glow bg-white p-5 rounded-xl text-text-dark border-l-4 border-primary shadow-lg">
+                        <p class="flex items-center gap-2 text-lg">
+                            <svg class="w-5 h-5 text-primary-light" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                            Get Started!
+                        </p>
+                        <p class="text-sm text-text-light mt-1">Select your exam (JEE, NEET, CLAT, or CUET) and fill in your details to receive your simulated ranks and college recommendations.</p>
+                    </div>
+                </div>
+
+                <!-- Custom Modal/Error Box --><div id="messageBox" class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-95">
+                        <h3 id="messageTitle" class="text-2xl font-bold mb-3 text-red-600 flex items-center gap-2">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                            Error
+                        </h3>
+                        <p id="messageContent" class="text-text-dark mb-4">Please check your inputs.</p>
+                        <button onclick="document.getElementById('messageBox').classList.add('hidden')" 
+                                class="w-full py-2 bg-primary text-white rounded-lg hover:bg-primary-light transition duration-200">
+                            OK
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const predictButton = document.getElementById('predictButton');
+        const airValue = document.getElementById('airValue');
+        const crValue = document.getElementById('crValue');
+        const crLabel = document.getElementById('crLabel');
+        const recommendationList = document.getElementById('recommendationList');
+        const predictedRankDiv = document.getElementById('predictedRank');
+        const recommendationsDiv = document.getElementById('recommendations');
+        const initialMessage = document.getElementById('initialMessage');
+        const headerBg = document.getElementById('header-bg');
+        const modeToggleContainer = document.getElementById('mode-toggle-container');
+        const toggleSlider = document.getElementById('toggle-slider');
+        const jeeInputs = document.getElementById('jee-inputs');
+        const neetInputs = document.getElementById('neet-inputs');
+        const clatInputs = document.getElementById('clat-inputs'); 
+        const cuetInputs = document.getElementById('cuet-inputs'); // NEW
+        const totalTakersHint = document.getElementById('total-takers-hint');
+
+        let currentMode = 'jee'; // Default mode
+
+        // --- Utility Functions ---
+
+        function showMessage(title, content, isError = true) {
+            document.getElementById('messageTitle').textContent = title;
+            document.getElementById('messageContent').textContent = content;
+            document.getElementById('messageTitle').className = isError ? 'text-2xl font-bold mb-3 text-red-600 flex items-center gap-2' : 'text-2xl font-bold mb-3 text-green-600 flex items-center gap-2';
+            document.getElementById('messageBox').classList.remove('hidden');
+        }
+
+        const placeholderImages = {
+            jee: [
+                'https://via.placeholder.com/60x60/3282b8/FFFFFF?text=NIT', 
+                'https://via.placeholder.com/60x60/0f4c75/FFFFFF?text=IIT', 
+                'https://via.placeholder.com/60x60/bbe1fa/3282b8?text=IIIT',
+                'https://via.placeholder.com/60x60/6c7a89/FFFFFF?text=Engg'
+            ],
+            neet: [
+                'https://via.placeholder.com/60x60/c24100/FFFFFF?text=AIIMS', 
+                'https://via.placeholder.com/60x60/9a3412/FFFFFF?text=MBBS', 
+                'https://via.placeholder.com/60x60/fed7aa/9a3412?text=Medical',
+                'https://via.placeholder.com/60x60/475569/FFFFFF?text=College'
+            ],
+            clat: [ 
+                'https://via.placeholder.com/60x60/5b21b6/FFFFFF?text=NLU', 
+                'https://via.placeholder.com/60x60/7c3aed/FFFFFF?text=Law', 
+                'https://via.placeholder.com/60x60/dcd2f8/5b21b6?text=Justice',
+                'https://via.placeholder.com/60x60/475569/FFFFFF?text=Court'
+            ],
+            cuet: [ // NEW CUET images
+                'https://via.placeholder.com/60x60/059669/FFFFFF?text=DU', 
+                'https://via.placeholder.com/60x60/34d399/059669?text=CUET', 
+                'https://via.placeholder.com/60x60/34d399/FFFFFF?text=BHU',
+                'https://via.placeholder.com/60x60/10b981/FFFFFF?text=JNU'
+            ]
+        };
+
+        function getRandomImage(mode) {
+            const images = placeholderImages[mode];
+            return images[Math.floor(Math.random() * images.length)];
+        }
+
+
+        // --- RANK PREDICTION LOGIC ---
+
+        // Function to calculate simulated Category Rank (Shared for all)
+        function calculateCategoryRank(air, category, customRatio) {
+            if (category === 'General') return air;
+            
+            let defaultMultiplier;
+            // Default reservation percentages (based on standard government guidelines)
+            switch (category) {
+                case 'EWS': defaultMultiplier = 0.10; break; 
+                case 'OBC-NCL': defaultMultiplier = 0.27; break; 
+                case 'SC': defaultMultiplier = 0.15; break; 
+                case 'ST': defaultMultiplier = 0.075; break; 
+                default: defaultMultiplier = 1.0;
+            }
+
+            const multiplier = customRatio > 0 ? customRatio : defaultMultiplier;
+            let cr = air * multiplier;
+            return Math.max(1, Math.round(cr));
+        }
+
+        // 1. JEE RANK LOGIC
+        function predictJeerank(percentile, marks, gender, totalStudents) {
+            let air = totalStudents * (100 - percentile) / 100;
+
+            if (percentile > 99.5) air = air * 0.85; 
+            else if (percentile > 98.0) air = air * 0.95; 
+            
+            const marksFactor = (marks / 360);
+            if (marks > 0 && percentile > 90) {
+                if (marksFactor < 0.5) air = air * 0.98; 
+                else if (marksFactor > 0.8) air = air * 1.02; 
+            }
+            
+            if (gender === 'Female') air = air * 0.95;
+            
+            air = Math.max(1, Math.min(air, totalStudents));
+            return Math.round(air);
+        }
+
+        // 2. NEET RANK LOGIC
+        function predictNeetRank(score, totalStudents) {
+            let percentile;
+            if (score >= 700) percentile = 99.9995;
+            else if (score >= 680) percentile = 99.99;
+            else if (score >= 650) percentile = 99.9;
+            else if (score >= 600) percentile = 99.5;
+            else if (score >= 550) percentile = 98.0;
+            else if (score >= 500) percentile = 95.0;
+            else if (score >= 400) percentile = 80.0;
+            else percentile = 50.0;
+
+            let air = totalStudents * (100 - percentile) / 100;
+
+            if (score >= 650) air = air * (1 - (score - 650) / 1000); 
+            
+            return Math.max(1, Math.min(air, totalStudents));
+        }
+        
+        // 3. CLAT RANK LOGIC
+        function predictClatRank(score, totalStudents) {
+             const maxClatRank = 10000;
+             const maxClatScore = 120;
+             
+             let air = maxClatRank * (maxClatScore - score) / maxClatScore;
+             
+             if (score >= 100) { 
+                air = air * 0.05; 
+             } else if (score >= 90) {
+                 air = air * 0.2;
+             } else if (score >= 80) {
+                 air = air * 0.5;
+             } else if (score >= 70) {
+                 air = air * 0.7;
+             }
+             
+             if (score > 100) air = Math.max(1, air);
+
+             return Math.round(air);
+        }
+        
+        // 4. CUET RANK LOGIC (NEW)
+        function predictCuetRank(percentile, totalStudents) {
+             // CUET usually has a massive number of test takers (often larger than JEE/NEET combined)
+             // The ranks are calculated based on percentile, but the sheer volume means even 99.9% is a high rank.
+             let air = totalStudents * (100 - percentile) / 100;
+
+             // High competition multiplier: If percentile is high, rank drops faster than linear.
+             if (percentile > 99.9) { // Extremely high percentile is needed for a top 50 rank
+                air = air * 0.08;
+             } else if (percentile > 99.5) {
+                 air = air * 0.15;
+             } else if (percentile > 99.0) {
+                 air = air * 0.3;
+             } else if (percentile > 95.0) {
+                 air = air * 0.8;
+             }
+
+             return Math.max(1, Math.min(air, totalStudents));
+        }
+
+
+        // --- SIMULATED CUTOFF DATA ---
+
+        const simulatedCollegeData = {
+            // JEE (Engineering) Data
+            jee: [
+                { category: 'General', rankType: 'AIR', minRank: 1, maxRank: 1500, college: 'NIT Surathkal', branch: 'CSE', quota: 'OS', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 1501, maxRank: 3500, college: 'NIT Trichy', branch: 'CSE', quota: 'OS', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 6001, maxRank: 10000, college: 'IIIT Allahabad', branch: 'IT', quota: 'OS', chance: 'Medium' },
+                { category: 'OBC-NCL', rankType: 'CR', minRank: 1, maxRank: 4000, college: 'NIT Trichy', branch: 'CSE/ECE', quota: 'AI', chance: 'High' },
+                { category: 'All', rankType: 'AIR', minRank: 200001, maxRank: 1000000, college: 'State/Private Colleges', branch: 'Explore state-level counselling & private options.', quota: 'N/A', chance: 'Very Low' }
+            ],
+
+            // NEET (Medical) Data
+            medical: [
+                { category: 'General', rankType: 'AIR', minRank: 1, maxRank: 500, college: 'AIIMS Delhi', branch: 'MBBS', quota: 'AI', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 501, maxRank: 5000, college: 'Top Govt. College (State Quota)', branch: 'MBBS', quota: 'HS', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 5001, maxRank: 15000, college: 'Govt. Medical College (All India)', branch: 'MBBS', quota: 'AI', chance: 'Medium' },
+                { category: 'OBC-NCL', rankType: 'CR', minRank: 1, maxRank: 8000, college: 'Govt. Medical College', branch: 'MBBS', quota: 'AI', chance: 'High' },
+                { category: 'All', rankType: 'AIR', minRank: 100000, maxRank: 2000000, college: 'BDS/Ayush Courses/Private Colleges', branch: 'Consider alternative medical courses (BDS, BAMS, BHMS)', quota: 'N/A', chance: 'Very Low' }
+            ],
+            
+            // CLAT (Law) Data
+            clat: [
+                { category: 'General', rankType: 'AIR', minRank: 1, maxRank: 150, college: 'NLSIU Bangalore', branch: 'B.A. LL.B.', quota: 'AI', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 151, maxRank: 350, college: 'NALSAR Hyderabad', branch: 'B.A. LL.B.', quota: 'AI', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 351, maxRank: 600, college: 'WBNUJS Kolkata', branch: 'B.A. LL.B.', quota: 'AI', chance: 'Medium' },
+                { category: 'OBC-NCL', rankType: 'CR', minRank: 1, maxRank: 800, college: 'NLU Jodhpur', branch: 'B.A. LL.B.', quota: 'AI', chance: 'High' },
+                { category: 'All', rankType: 'AIR', minRank: 3000, maxRank: 10000, college: 'Private/Affiliated Law Schools', branch: 'Explore state/private options.', quota: 'N/A', chance: 'Very Low' }
+            ],
+            
+            // CUET (Central Universities) Data (NEW)
+            cuet: [
+                { category: 'General', rankType: 'AIR', minRank: 1, maxRank: 50, college: 'Miranda House (DU)', branch: 'B.A. (Hons) Pol Sc', quota: 'AI', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 51, maxRank: 500, college: 'Lady Shri Ram (DU)', branch: 'B.Com (Hons)', quota: 'AI', chance: 'High' },
+                { category: 'General', rankType: 'AIR', minRank: 501, maxRank: 1500, college: 'Hindu College (DU)', branch: 'B.Sc (Hons) Physics', quota: 'AI', chance: 'Medium' },
+                { category: 'General', rankType: 'AIR', minRank: 1501, maxRank: 5000, college: 'BHU', branch: 'B.A. (Hons) Arts/Soc Sc.', quota: 'AI', chance: 'Medium' },
+                { category: 'OBC-NCL', rankType: 'CR', minRank: 1, maxRank: 800, college: 'Kirori Mal College (DU)', branch: 'B.A. (Hons)', quota: 'AI', chance: 'High' },
+                { category: 'SC', rankType: 'CR', minRank: 1, maxRank: 3000, college: 'Hansraj College (DU)', branch: 'B.Sc. Program', quota: 'AI', chance: 'Medium' },
+                { category: 'All', rankType: 'AIR', minRank: 25000, maxRank: 10000000, college: 'Affiliated/State Universities', branch: 'Explore state university options.', quota: 'N/A', chance: 'Very Low' }
+            ]
+        };
+
+        // --- CORE LOGIC FUNCTIONS (Shared) ---
+
+        function getRecommendations(predictedAIR, predictedCR, category, mode) {
+            const recommendations = [];
+            const collegeData = simulatedCollegeData[mode];
+            
+            const relevantData = collegeData.filter(item => 
+                item.category === category || item.category === 'General' || item.category === 'All'
+            );
+
+            relevantData.forEach(data => {
+                let rankToCheck;
+                if (data.category === 'General' || data.rankType === 'AIR') {
+                    rankToCheck = predictedAIR;
+                } else { 
+                    rankToCheck = predictedCR;
+                }
+
+                if (rankToCheck >= data.minRank && rankToCheck <= data.maxRank) {
+                    recommendations.push(data);
+                }
+            });
+
+            recommendations.sort((a, b) => {
+                const chanceOrder = { 'High': 4, 'Medium': 3, 'Low': 2, 'Very Low': 1 };
+                if (chanceOrder[b.chance] !== chanceOrder[a.chance]) {
+                    return chanceOrder[b.chance] - chanceOrder[a.chance];
+                }
+                return a.minRank - b.minRank; 
+            });
+
+            if (recommendations.length === 0) {
+                 return [{
+                    college: `No direct ${mode} college matches found in our simulated data.`,
+                    branch: 'Consider exploring broader options or improving your rank.',
+                    quota: 'N/A',
+                    chance: 'Very Low'
+                }];
+            }
+            
+            const uniqueRecommendations = [];
+            const collegeBranchSet = new Set();
+            for(const rec of recommendations) {
+                const key = `${rec.college}-${rec.branch}-${rec.quota}`;
+                if(!collegeBranchSet.has(key)) {
+                    uniqueRecommendations.push(rec);
+                    collegeBranchSet.add(key);
+                }
+                if(uniqueRecommendations.length >= 5) break; 
+            }
+            return uniqueRecommendations;
+        }
+
+        // --- UI & EVENT HANDLING ---
+
+        function updateMode(mode) {
+            currentMode = mode;
+
+            // 1. Update Header Color and Slider Position
+            let newColor;
+            let sliderTransform;
+            let buttonRing;
+
+            if (mode === 'jee') {
+                newColor = 'bg-primary';
+                sliderTransform = 'translateX(0%)';
+                buttonRing = 'focus:ring-primary-light';
+                totalTakersHint.textContent = "Enter the official NTA number for the current JEE exam year.";
+            } else if (mode === 'medical') {
+                newColor = 'bg-medical';
+                sliderTransform = 'translateX(100%)';
+                buttonRing = 'focus:ring-orange-300';
+                totalTakersHint.textContent = "Enter the official NTA number for the current NEET exam year (typically 15-20+ Lakh).";
+            } else if (mode === 'clat') {
+                newColor = 'bg-law';
+                sliderTransform = 'translateX(200%)';
+                buttonRing = 'focus:ring-purple-300';
+                totalTakersHint.textContent = "Enter the official number for the current CLAT exam year (typically 50k - 70k).";
+            } else { // cuet
+                newColor = 'bg-cuet';
+                sliderTransform = 'translateX(300%)';
+                buttonRing = 'focus:ring-green-300';
+                totalTakersHint.textContent = "Enter the estimated total number of unique candidates who appeared for CUET.";
+            }
+            
+            // Apply color changes
+            headerBg.className = `p-6 text-white text-center rounded-t-2xl ${newColor}`;
+            predictButton.className = `w-full py-3 mt-6 text-white ${newColor} hover:opacity-90 transition duration-300 rounded-lg font-bold text-xl shadow-xl transform hover:scale-[1.01] focus:outline-none focus:ring-4 ${buttonRing} focus:ring-opacity-50 flex items-center justify-center gap-2`;
+
+            // Apply slider transform
+            modeToggleContainer.classList.remove('jee', 'medical', 'clat', 'cuet');
+            modeToggleContainer.classList.add(mode);
+            toggleSlider.style.transform = sliderTransform;
+
+
+            // 2. Toggle Input Fields visibility and required attributes
+            [jeeInputs, neetInputs, clatInputs, cuetInputs].forEach(inputDiv => inputDiv.classList.add('hidden'));
+            [document.getElementById('percentile'), document.getElementById('neetScore'), document.getElementById('clatScore'), document.getElementById('cuetPercentile')].forEach(input => input && input.removeAttribute('required'));
+
+            if (mode === 'jee') {
+                jeeInputs.classList.remove('hidden');
+                document.getElementById('percentile').setAttribute('required', 'required');
+            } else if (mode === 'medical') {
+                neetInputs.classList.remove('hidden');
+                document.getElementById('neetScore').setAttribute('required', 'required');
+            } else if (mode === 'clat') {
+                clatInputs.classList.remove('hidden');
+                document.getElementById('clatScore').setAttribute('required', 'required');
+            } else { // cuet
+                cuetInputs.classList.remove('hidden');
+                document.getElementById('cuetPercentile').setAttribute('required', 'required');
+            }
+            
+            // 3. Reset Results Display
+            predictedRankDiv.classList.add('hidden');
+            recommendationsDiv.classList.add('hidden');
+            initialMessage.classList.remove('hidden');
+        }
+
+        // Attach mode change handlers
+        document.querySelectorAll('.toggle-button').forEach(button => {
+            button.addEventListener('click', () => {
+                updateMode(button.getAttribute('data-mode'));
+            });
+        });
+
+        // Initialize default mode
+        updateMode('jee');
+
+
+        predictButton.addEventListener('click', (e) => {
+            e.preventDefault();
+
+            const category = document.getElementById('category').value;
+            const gender = document.getElementById('gender').value;
+            const totalStudentsInput = document.getElementById('totalStudents').value;
+            const categoryRatioInput = document.getElementById('categoryRatio').value;
+
+            const totalStudents = parseInt(totalStudentsInput);
+            const categoryRatio = parseFloat(categoryRatioInput) || 0; 
+
+            if (isNaN(totalStudents) || totalStudents < 10000) {
+                showMessage("Input Error", "Please enter a realistic total number of test takers (min 10,000).");
+                return;
+            }
+            
+            let predictedAIR, predictedCR;
+
+            if (currentMode === 'jee') {
+                const percentileInput = document.getElementById('percentile').value;
+                const marksInput = document.getElementById('marks').value;
+                const percentile = parseFloat(percentileInput);
+                const marks = parseInt(marksInput) || 0;
+                
+                if (isNaN(percentile) || percentile < 0 || percentile > 100) {
+                    showMessage("Input Error", "Please enter a valid JEE Percentile (0 to 100).");
+                    return;
+                }
+                predictedAIR = predictJeerank(percentile, marks, gender, totalStudents);
+
+            } else if (currentMode === 'medical') {
+                const neetScoreInput = document.getElementById('neetScore').value;
+                const score = parseInt(neetScoreInput);
+                
+                if (isNaN(score) || score < 0 || score > 720) {
+                    showMessage("Input Error", "Please enter a valid NEET Score (0 to 720).");
+                    return;
+                }
+                predictedAIR = predictNeetRank(score, totalStudents);
+            } else if (currentMode === 'clat') {
+                const clatScoreInput = document.getElementById('clatScore').value;
+                const score = parseInt(clatScoreInput);
+                
+                if (isNaN(score) || score < 0 || score > 120) {
+                    showMessage("Input Error", "Please enter a valid CLAT Score (0 to 120).");
+                    return;
+                }
+                predictedAIR = predictClatRank(score, totalStudents);
+            } else { // currentMode === 'cuet'
+                const cuetPercentileInput = document.getElementById('cuetPercentile').value;
+                const percentile = parseFloat(cuetPercentileInput);
+                
+                if (isNaN(percentile) || percentile < 0 || percentile > 100) {
+                    showMessage("Input Error", "Please enter a valid CUET Percentile (0 to 100).");
+                    return;
+                }
+                predictedAIR = predictCuetRank(percentile, totalStudents);
+            }
+            
+            predictedCR = calculateCategoryRank(predictedAIR, category, categoryRatio);
+            const recommendations = getRecommendations(predictedAIR, predictedCR, category, currentMode);
+
+            initialMessage.classList.add('hidden');
+
+            // --- Display Ranks ---
+            airValue.textContent = predictedAIR.toLocaleString('en-IN'); 
+            
+            if (category === 'General') {
+                crLabel.textContent = 'Category Rank (CR - Same as AIR)';
+                crValue.textContent = predictedAIR.toLocaleString('en-IN');
+            } else {
+                crLabel.textContent = `Simulated ${category} Rank (CR)`;
+                crValue.textContent = predictedCR.toLocaleString('en-IN');
+            }
+            
+            predictedRankDiv.classList.remove('hidden');
+
+            // --- Display Recommendations ---
+            recommendationList.innerHTML = '';
+            recommendations.forEach(rec => {
+                let colorClass = 'bg-blue-100 text-blue-800'; // Default High
+                if (rec.chance === 'Medium') colorClass = 'bg-green-100 text-green-800';
+                if (rec.chance === 'Low') colorClass = 'bg-yellow-100 text-yellow-800';
+                if (rec.chance === 'Very Low') colorClass = 'bg-red-100 text-red-800';
+
+                const displayRankType = rec.rankType === 'AIR' ? 'AIR' : 'CR';
+                const displayQuota = rec.quota !== 'N/A' ? `(${rec.quota})` : '';
+                const collegeImage = getRandomImage(currentMode); 
+
+                const listItem = document.createElement('li');
+                listItem.className = 'card-glow bg-white p-4 rounded-lg shadow-md border-l-4 border-primary-light flex items-center gap-4';
+                // Adjust border color based on mode
+                let borderColor;
+                if (currentMode === 'jee') borderColor = '#3282b8';
+                else if (currentMode === 'medical') borderColor = '#c24100';
+                else if (currentMode === 'clat') borderColor = '#5b21b6';
+                else if (currentMode === 'cuet') borderColor = '#059669';
+                listItem.style.borderLeftColor = borderColor;
+                
+                listItem.innerHTML = `
+                    <img src="${collegeImage}" alt="${rec.college} logo" class="w-16 h-16 object-cover rounded-md flex-shrink-0 border border-gray-200" onerror="this.onerror=null;this.src='https://via.placeholder.com/60x60/f0f4f8/94a3b8?text=?';">
+                    <div>
+                        <p class="font-bold text-lg text-text-dark">${rec.college}</p>
+                        <p class="text-sm text-text-light">Course: ${rec.branch} ${displayQuota}</p>
+                        <div class="flex flex-wrap items-center gap-2 mt-2 text-xs">
+                            <span class="inline-block px-2 py-0.5 font-semibold rounded-full ${colorClass}">
+                                Chance: ${rec.chance}
+                            </span>
+                            <span class="text-text-light">
+                                Cutoff Sim: ${rec.minRank.toLocaleString('en-IN')} - ${rec.maxRank.toLocaleString('en-IN')} (${displayRankType})
+                            </span>
+                        </div>
+                    </div>
+                `;
+                recommendationList.appendChild(listItem);
+            });
+
+            recommendationsDiv.classList.remove('hidden');
+        });
+    </script>
+
+</body>
+</html>
