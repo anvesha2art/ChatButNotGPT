@@ -13,7 +13,7 @@ A dynamic web application designed to simulate the prediction of competitive exa
 
 Category Key Technologies Used:
 
-Frontend - React.js, Tailwind CSS, HTML5 Canvas, Vanilla JavaScript
-AI/ML - Google Gemini API (Generative AI)
-Database - Firebase Firestore (Real-Time NoSQL Database)
-Deployment - GitHub Pages, Vercel, Local Host
+1)Frontend - React.js, Tailwind CSS, HTML5 Canvas, Vanilla JavaScript
+2)AI/ML - Google Gemini API (Generative AI)
+3)Database - Firebase Firestore (Real-Time NoSQL Database)
+4)Deployment - GitHub Pages, Vercel, Local Host
