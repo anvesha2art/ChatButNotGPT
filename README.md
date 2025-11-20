@@ -4,6 +4,7 @@ Projects Overview:
 
 JARVIS Web Assistant (Multimodal AI Chatbot)
 A sophisticated, persistent personal web assistant built to handle queries, code and image generation, and multimodal analysis, emulating the functionality of a digital butler.
+It is tagged under releases option.
 
 Flappy Bird Game Clone
 A complete, feature-rich clone of the classic Flappy Bird arcade game, built from the ground up using vanilla JavaScript and the HTML5 Canvas API.
